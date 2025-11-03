@@ -16,7 +16,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
     internal class HDInsightClusterTests : HDInsightManagementTestBase
     {
         private ResourceGroupResource _resourceGroup;
-        private string _storageAccountName, _containerName, _accessKey, _clusterName;
+        private string _storageAccountName, _containerName, _accessKey, _clusterName, _msi, _resourceId;
         private HDInsightClusterCollection _clusterCollection => _resourceGroup.GetHDInsightClusters();
 
         public HDInsightClusterTests(bool isAsync) : base(isAsync)
@@ -27,10 +27,15 @@ namespace Azure.ResourceManager.HDInsight.Tests
         public async Task TestSetUp()
         {
             string rgName = Recording.GenerateAssetName(DefaultResourceGroupPrefix);
-            _storageAccountName = Recording.GenerateAssetName("azstorageforcluster");
+            //_storageAccountName = Recording.GenerateAssetName("azstorageforcluster");
+            _storageAccountName = "yka01westus2";
             _containerName = Recording.GenerateAssetName("container");
             _clusterName = Recording.GenerateAssetName("hdi");
             _resourceGroup = await CreateResourceGroup(rgName);
+            //_msi = "/subscriptions/964c10bb-8a6c-43bc-83d3-6b318c6c7305/resourceGroups/yukundemo2/providers/Microsoft.ManagedIdentity/userAssignedIdentities/yk-msi-westus2";
+            _msi = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/yukundemo2/providers/Microsoft.ManagedIdentity/userAssignedIdentities/yk-msi-westus2";
+            //_resourceId = "/subscriptions/964c10bb-8a6c-43bc-83d3-6b318c6c7305/resourceGroups/yukundemo2/providers/Microsoft.Storage/storageAccounts/yka01westus2";
+            _resourceId = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/yukundemo2/providers/Microsoft.Storage/storageAccounts/yka01westus2";
             if (Mode == RecordedTestMode.Playback)
             {
                 _accessKey = "Sanitized";
@@ -39,7 +44,8 @@ namespace Azure.ResourceManager.HDInsight.Tests
             {
                 using (Recording.DisableRecording())
                 {
-                    _accessKey = await CreateStorageResources(_resourceGroup, _storageAccountName, _containerName);
+                    //_accessKey = await CreateStorageResources(_resourceGroup, _storageAccountName, _containerName);
+                    _accessKey = null;
                 }
             }
         }
@@ -47,7 +53,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
         [RecordedTest]
         public async Task CreateOrUpdate()
         {
-            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, _accessKey);
+            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, accessKey: _accessKey, msi:_msi, resourceId:_resourceId);
             ValidateCluster(cluster);
             Assert.AreEqual(_clusterName, cluster.Data.Name);
         }
@@ -55,7 +61,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
         [RecordedTest]
         public async Task Exist()
         {
-            await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, _accessKey);
+            await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, msi:_msi, resourceId:_resourceId);
             bool flag = await _clusterCollection.ExistsAsync(_clusterName);
             Assert.IsTrue(flag);
         }
@@ -63,7 +69,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
         [RecordedTest]
         public async Task Get()
         {
-            await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, _accessKey);
+            await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, msi:_msi, resourceId:_resourceId);
             var cluster = await _clusterCollection.GetAsync(_clusterName);
             ValidateCluster(cluster);
             Assert.AreEqual(_clusterName, cluster.Value.Data.Name);
@@ -72,7 +78,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
         [RecordedTest]
         public async Task GetAll()
         {
-            await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, _accessKey);
+            await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, msi: _msi, resourceId:_resourceId);
             var list = await _clusterCollection.GetAllAsync().ToEnumerableAsync();
             ValidateCluster(list.FirstOrDefault());
             Assert.AreEqual(1, list.Count);
@@ -81,7 +87,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
         [RecordedTest]
         public async Task Delete()
         {
-            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, _accessKey);
+            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, msi:_msi, resourceId:_resourceId);
             bool flag = await _clusterCollection.ExistsAsync(_clusterName);
             Assert.IsTrue(flag);
 
@@ -93,7 +99,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
         [RecordedTest]
         public async Task GetExtension()
         {
-            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, _accessKey);
+            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, msi: _msi, resourceId: _resourceId);
 
             var extension = await cluster.GetExtensionAsync("azuremonitor");
             Assert.IsNotNull(extension);
@@ -104,7 +110,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
         [RecordedTest]
         public async Task AddTagTest()
         {
-            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, _accessKey);
+            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, msi: _msi, resourceId: _resourceId);
             await cluster.AddTagAsync("addtagkey", "addtagvalue");
 
             cluster = await _clusterCollection.GetAsync(_clusterName);
@@ -119,7 +125,7 @@ namespace Azure.ResourceManager.HDInsight.Tests
             ResourceIdentifier resourceIdentifier = new ResourceIdentifier("/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/hdi-ps-test/providers/Microsoft.ManagedIdentity/userAssignedIdentities/hdi-test-msi");
             ResourceIdentifier resourceIdentifier2 = new ResourceIdentifier("/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/hdi-ps-test/providers/Microsoft.ManagedIdentity/userAssignedIdentities/hdi-test-msi2");
 
-            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, _accessKey);
+            var cluster = await CreateDefaultHadoopCluster(_resourceGroup, _clusterName, _storageAccountName, _containerName, msi: _msi, resourceId: _resourceId);
 
             HDInsightClusterPatch patch = new HDInsightClusterPatch();
             //patch.Identity = new ManagedServiceIdentity(ManagedServiceIdentityType.SystemAssigned);

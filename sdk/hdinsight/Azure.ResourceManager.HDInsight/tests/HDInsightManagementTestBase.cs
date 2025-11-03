@@ -4,10 +4,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Principal;
 using System.Threading.Tasks;
 using Azure.Core;
 using Azure.Core.TestFramework;
 using Azure.ResourceManager.HDInsight.Models;
+using Azure.ResourceManager.Models;
 using Azure.ResourceManager.Resources;
 using Azure.ResourceManager.Storage;
 using Azure.ResourceManager.Storage.Models;
@@ -20,11 +22,15 @@ namespace Azure.ResourceManager.HDInsight.Tests
     {
         protected ArmClient Client { get; private set; }
         protected const string DefaultResourceGroupPrefix = "HDInsightRG-";
-        protected AzureLocation DefaultLocation = AzureLocation.EastAsia;
+        protected AzureLocation DefaultLocation = AzureLocation.WestUS2;
         protected const string Common_User = "sshusername";
-        protected const string Common_Password = "ValidPassword";
-        protected const string Common_VNet_Id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/hdi-ps-test/providers/Microsoft.Network/virtualNetworks/hditestvnet";
-        protected const string Common_SubNet = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/hdi-ps-test/providers/Microsoft.Network/virtualNetworks/hditestvnet/subnets/default";
+        protected const string Common_Password = "Password1!";
+        //protected const string Common_VNet_Id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/yukundemo2/providers/Microsoft.Network/virtualNetworks/yk01networkwestus2";
+        //protected const string Common_VNet_Id = "/subscriptions/964c10bb-8a6c-43bc-83d3-6b318c6c7305/resourceGroups/yukundemo2/providers/Microsoft.Network/virtualNetworks/yk01networkwestus2";
+        protected const string Common_VNet_Id = "/subscriptions/964c10bb-8a6c-43bc-83d3-6b318c6c7305/resourceGroups/yukundemo1/providers/Microsoft.Network/virtualNetworks/yk04networkeastasia";
+        //protected const string Common_SubNet = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/yukundemo2/providers/Microsoft.Network/virtualNetworks/yk01networkwestus2/subnets/default";
+        //protected const string Common_SubNet = "/subscriptions/964c10bb-8a6c-43bc-83d3-6b318c6c7305/resourceGroups/yukundemo2/providers/Microsoft.Network/virtualNetworks/yk01networkwestus2/subnets/default";
+        protected const string Common_SubNet = "/subscriptions/964c10bb-8a6c-43bc-83d3-6b318c6c7305/resourceGroups/yukundemo1/providers/Microsoft.Network/virtualNetworks/yk04networkeastasia/subnets/default";
         protected HDInsightManagementTestBase(bool isAsync, RecordedTestMode mode)
         : base(isAsync, mode)
         {
@@ -63,25 +69,36 @@ namespace Azure.ResourceManager.HDInsight.Tests
             return (await storageAccount.GetKeysAsync().ToEnumerableAsync()).FirstOrDefault().Value;
         }
 
-        protected async Task<HDInsightClusterResource> CreateDefaultHadoopCluster(ResourceGroupResource resourceGroup, string clusterName, string storageAccountName, string containerName, string accessKey)
+        protected async Task<HDInsightClusterResource> CreateDefaultHadoopCluster(ResourceGroupResource resourceGroup, string clusterName, string storageAccountName, string containerName, string accessKey = null, string msi = null, string resourceId = null)
         {
-            var properties = PrepareClusterCreateParams(storageAccountName, containerName, accessKey);
+            var properties = PrepareClusterCreateParams(storageAccountName, containerName, accessKey, msi, resourceId);
             var data = new HDInsightClusterCreateOrUpdateContent()
             {
                 Properties = properties,
-                Location = DefaultLocation,
+                Location = DefaultLocation
             };
+            if (!string.IsNullOrWhiteSpace(msi) && !string.IsNullOrWhiteSpace(resourceId))
+            {
+                ManagedServiceIdentity identity = new ManagedServiceIdentity(ManagedServiceIdentityType.UserAssigned)
+                {
+                    UserAssignedIdentities =
+                    {
+                        [new ResourceIdentifier(msi)] = new UserAssignedIdentity()
+                    }
+                };
+                data.Identity = identity;
+            }
             data.Tags.Add(new KeyValuePair<string, string>("key0", "value0"));
             var cluster = await resourceGroup.GetHDInsightClusters().CreateOrUpdateAsync(WaitUntil.Completed, clusterName, data);
             return cluster.Value;
         }
 
-        protected HDInsightClusterCreateOrUpdateProperties PrepareClusterCreateParams(string storageAccountName, string containerName, string accessKey)
+        protected HDInsightClusterCreateOrUpdateProperties PrepareClusterCreateParams(string storageAccountName, string containerName, string accessKey=null, string msi=null, string resourceId = null)
         {
-            string clusterDeifnitionConfigurations = "{         \"gateway\": {             \"restAuthCredential.isEnabled\": \"true\",             \"restAuthCredential.username\": \"admin\",             \"restAuthCredential.password\": \"Password\"         }     } ";
+            string clusterDeifnitionConfigurations = "{         \"gateway\": {             \"restAuthCredential.isEnabled\": \"true\",             \"restAuthCredential.username\": \"admin\",             \"restAuthCredential.password\": \"Password1!\"         }     } ";
             var properties = new HDInsightClusterCreateOrUpdateProperties()
             {
-                ClusterVersion = "4.0",
+                ClusterVersion = "5.1",
                 OSType = HDInsightOSType.Linux,
                 Tier = HDInsightTier.Standard,
                 ClusterDefinition = new HDInsightClusterDefinition()
@@ -139,13 +156,21 @@ namespace Azure.ResourceManager.HDInsight.Tests
                     Subnet = Common_SubNet
                 }
             });
-            properties.StorageAccounts.Add(new HDInsightStorageAccountInfo()
+            HDInsightStorageAccountInfo storageAccountproperties = new HDInsightStorageAccountInfo
             {
                 Name = $"{storageAccountName}.blob.core.windows.net",
                 IsDefault = true,
-                Container = containerName,
-                Key = accessKey,
-            });
+                Container = containerName
+            };
+            if (!string.IsNullOrWhiteSpace(msi) && !string.IsNullOrWhiteSpace(resourceId))
+            {
+                storageAccountproperties.MsiResourceId = new ResourceIdentifier(msi);
+                storageAccountproperties.ResourceId = new ResourceIdentifier(resourceId);
+            } else
+            {
+                storageAccountproperties.Key = accessKey;
+            }
+            properties.StorageAccounts.Add(storageAccountproperties);
             return properties;
         }
     }

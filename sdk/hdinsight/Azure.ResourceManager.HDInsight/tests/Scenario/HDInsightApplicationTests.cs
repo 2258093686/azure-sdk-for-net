@@ -29,13 +29,19 @@ namespace Azure.ResourceManager.HDInsight.Tests
             //Due to the HDInsightManagementTestBase's previous update, vnet restricts the cluster name have the unique first six characters.
             string clsusterNamePrefix = "G" + rgName.Substring(DefaultResourceGroupPrefix.Length) + "Cluster";
             string clusterName = Recording.GenerateAssetName(clsusterNamePrefix);
-            string storageAccountName = Recording.GenerateAssetName("azstorageforcluster");
+            //string storageAccountName = Recording.GenerateAssetName("azstorageforcluster");
+            string storageAccountName = "yka01westus2";
             string containerName = Recording.GenerateAssetName("container");
             _applicationName = Recording.GenerateAssetName("application");
             _scriptActionName = Recording.GenerateAssetName("InstallHue");
             var resourceGroup = await CreateResourceGroup(rgName);
-            var accessKey = await CreateStorageResources(resourceGroup, storageAccountName, containerName);
-            _cluster = await CreateDefaultHadoopCluster(resourceGroup, clusterName, storageAccountName, containerName, accessKey);
+            //var accessKey = await CreateStorageResources(resourceGroup, storageAccountName, containerName);
+            var accessKey = "";
+            string msiId = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/yukundemo2/providers/Microsoft.ManagedIdentity/userAssignedIdentities/yk-msi-westus2";
+            //string msiId = "/subscriptions/964c10bb-8a6c-43bc-83d3-6b318c6c7305/resourceGroups/yukundemo2/providers/Microsoft.ManagedIdentity/userAssignedIdentities/yk-msi-westus2";
+            string resourceId = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/yukundemo2/providers/Microsoft.Storage/storageAccounts/yka01westus2";
+            //string resourceId = "/subscriptions/964c10bb-8a6c-43bc-83d3-6b318c6c7305/resourceGroups/yukundemo2/providers/Microsoft.Storage/storageAccounts/yka01westus2";
+            _cluster = await CreateDefaultHadoopCluster(resourceGroup, clusterName, storageAccountName, containerName, accessKey:accessKey, msi: msiId, resourceId: resourceId);
         }
 
         private async Task<HDInsightApplicationResource> CreateApplication(string applicationName, string scriptActionName)
